@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Descansos de Empleados</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen p-4 md:p-8">
+
+  <div class="max-w-6xl mx-auto space-y-8">
+    
+    <!-- Encabezado -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between border-b pb-4 border-slate-200 gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-900">Control de Descansos</h1>
+        <p class="text-slate-500 text-sm">Gestión de días acumulados, redimidos y pendientes</p>
+      </div>
+      <button onclick="limpiarTodo()" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium px-3 py-2 rounded-lg transition">
+        Borrar todos los datos
+      </button>
+    </header>
+
+    <!-- Formularios -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
+      <!-- Crear Empleado -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">1. Registrar Nuevo Empleado</h2>
+        <form id="form-empleado" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+            <input type="text" id="emp-nombre" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Días Acumulados / Asignados</label>
+            <input type="number" id="emp-dias" min="1" step="0.5" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition">
+            Guardar Empleado
+          </button>
+        </form>
+      </div>
+
+      <!-- Redimir Descanso -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">2. Redimir Descanso</h2>
+        <form id="form-redencion" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Empleado</label>
+            <select id="red-empleado" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+              <option value="">Selecciona un empleado...</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
+              <input type="date" id="red-fecha" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Días a Redimir</label>
+              <input type="number" id="red-dias" min="0.5" step="0.5" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nota o Motivo</label>
+            <input type="text" id="red-nota" placeholder="Ej: Descanso compensatorio" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+          </div>
+          <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition">
+            Registrar Redención
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- Tabla de Resumen de Empleados -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="p-6 border-b border-slate-100">
+        <h2 class="text-xl font-bold text-slate-800">Resumen de Empleados</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+              <th class="p-4 font-semibold">Empleado</th>
+              <th class="p-4 font-semibold text-center">Días Acumulados</th>
+              <th class="p-4 font-semibold text-center">Días Redimidos</th>
+              <th class="p-4 font-semibold text-center">Días Pendientes</th>
+              <th class="p-4 font-semibold text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-empleados" class="divide-y divide-slate-100 text-sm">
+            <!-- Filas dinámicas -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tabla de Historial de Redenciones -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="p-6 border-b border-slate-100">
+        <h2 class="text-xl font-bold text-slate-800">Historial de Redenciones</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+              <th class="p-4 font-semibold">Fecha</th>
+              <th class="p-4 font-semibold">Empleado</th>
+              <th class="p-4 font-semibold text-center">Días Redimidos</th>
+              <th class="p-4 font-semibold">Nota / Motivo</th>
+              <th class="p-4 font-semibold text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-redenciones" class="divide-y divide-slate-100 text-sm">
+            <!-- Filas dinámicas -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Estado global de la aplicación
+    let empleados = JSON.parse(localStorage.getItem('empleados')) || [];
+    let redenciones = JSON.parse(localStorage.getItem('redenciones')) || [];
+
+    // Elementos DOM
+    const formEmpleado = document.getElementById('form-empleado');
+    const formRedencion = document.getElementById('form-redencion');
+    const selectEmpleado = document.getElementById('red-empleado');
+    const tablaEmpleados = document.getElementById('tabla-empleados');
+    const tablaRedenciones = document.getElementById('tabla-redenciones');
+
+    // Inicializar fecha actual en formulario
+    document.getElementById('red-fecha').valueAsDate = new Date();
+
+    // Guardar en LocalStorage
+    function guardar() {
+      localStorage.setItem('empleados', JSON.stringify(empleados));
+      localStorage.setItem('redenciones', JSON.stringify(redenciones));
+      render();
+    }
+
+    // Agregar empleado
+    formEmpleado.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const nombre = document.getElementById('emp-nombre').value.trim();
+      const diasAcumulados = parseFloat(document.getElementById('emp-dias').value);
+
+      if (empleados.some(e => e.nombre.toLowerCase() === nombre.toLowerCase())) {
+        alert('Ya existe un empleado con este nombre.');
+        return;
+      }
+
+      empleados.push({ id: Date.now(), nombre, diasAcumulados });
+      formEmpleado.reset();
+      guardar();
+    });
+
+    // Registrar redención
+    formRedencion.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const empleadoId = parseInt(selectEmpleado.value);
+      const fecha = document.getElementById('red-fecha').value;
+      const dias = parseFloat(document.getElementById('red-dias').value);
+      const nota = document.getElementById('red-nota').value.trim();
+
+      const emp = empleados.find(e => e.id === empleadoId);
+      if (!emp) return;
+
+      const diasRedimidosTotales = redenciones
+        .filter(r => r.empleadoId === empleadoId)
+        .reduce((sum, r) => sum + r.dias, 0);
+
+      const diasPendientes = emp.diasAcumulados - diasRedimidosTotales;
+
+      if (dias > diasPendientes) {
+        alert(`No puedes redimir ${dias} días. El empleado solo tiene ${diasPendientes} días pendientes.`);
+        return;
+      }
+
+      redenciones.push({ id: Date.now(), empleadoId, fecha, dias, nota });
+      document.getElementById('red-dias').value = '';
+      document.getElementById('red-nota').value = '';
+      guardar();
+    });
+
+    // Eliminar redención
+    function eliminarRedencion(id) {
+      if (confirm('¿Deseas cancelar esta redención? Los días se devolverán al saldo pendiente.')) {
+        redenciones = redenciones.filter(r => r.id !== id);
+        guardar();
+      }
+    }
+
+    // Eliminar empleado
+    function eliminarEmpleado(id) {
+      if (confirm('¿Eliminar empleado y todo su historial de redenciones?')) {
+        empleados = empleados.filter(e => e.id !== id);
+        redenciones = redenciones.filter(r => r.empleadoId !== id);
+        guardar();
+      }
+    }
+
+    // Limpiar toda la BD
+    function limpiarTodo() {
+      if (confirm('¿Estás seguro de borrar todos los empleados y registros?')) {
+        localStorage.clear();
+        empleados = [];
+        redenciones = [];
+        render();
+      }
+    }
+
+    // Renderizar Tablas y Controles
+    function render() {
+      // Desplegable de Empleados
+      selectEmpleado.innerHTML = '<option value="">Selecciona un empleado...</option>';
+      empleados.forEach(e => {
+        selectEmpleado.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
+      });
+
+      // Tabla de Resumen
+      tablaEmpleados.innerHTML = '';
+      if (empleados.length === 0) {
+        tablaEmpleados.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay empleados registrados.</td></tr>`;
+      } else {
+        empleados.forEach(emp => {
+          const redimidos = redenciones
+            .filter(r => r.empleadoId === emp.id)
+            .reduce((sum, r) => sum + r.dias, 0);
+          const pendientes = emp.diasAcumulados - redimidos;
+
+          tablaEmpleados.innerHTML += `
+            <tr class="hover:bg-slate-50">
+              <td class="p-4 font-medium text-slate-900">${emp.nombre}</td>
+              <td class="p-4 text-center">${emp.diasAcumulados}</td>
+              <td class="p-4 text-center text-amber-600 font-semibold">${redimidos}</td>
+              <td class="p-4 text-center">
+                <span class="px-2.5 py-1 rounded-full text-xs font-bold ${pendientes > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}">
+                  ${pendientes} días
+                </span>
+              </td>
+              <td class="p-4 text-right">
+                <button onclick="eliminarEmpleado(${emp.id})" class="text-red-500 hover:text-red-700 text-xs font-medium">
+                  Eliminar
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+      }
+
+      // Tabla de Historial
+      tablaRedenciones.innerHTML = '';
+      if (redenciones.length === 0) {
+        tablaRedenciones.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay redenciones registradas.</td></tr>`;
+      } else {
+        // Ordenar por fecha descendente
+        [...redenciones].reverse().forEach(red => {
+          const emp = empleados.find(e => e.id === red.empleadoId);
+          const nombreEmp = emp ? emp.nombre : 'Empleado eliminado';
+
+          tablaRedenciones.innerHTML += `
+            <tr class="hover:bg-slate-50">
+              <td class="p-4 text-slate-600">${red.fecha}</td>
+              <td class="p-4 font-medium text-slate-900">${nombreEmp}</td>
+              <td class="p-4 text-center font-bold text-amber-600">${red.dias}</td>
+              <td class="p-4 text-slate-500">${red.nota || '-'}</td>
+              <td class="p-4 text-right">
+                <button onclick="eliminarRedencion(${red.id})" class="text-xs text-red-500 hover:text-red-700 font-medium">
+                  Anular
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+      }
+    }
+
+    // Carga inicial
+    render();
+  </script>
+</body>
+</html>
