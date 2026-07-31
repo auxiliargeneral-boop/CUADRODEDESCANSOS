@@ -1,87 +1,214 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control de Descansos de Empleados</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Descansos de Empleados</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          forest: { 50:'#f2f7f4',100:'#dfeee5',200:'#bdddca',600:'#2f6f52',700:'#255943',800:'#1f4736',900:'#173428' },
+          sand:   { 50:'#faf8f4',100:'#f3efe6',200:'#e7ddc9' },
+          gold:   { 500:'#b8862f',600:'#9c7027' }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { background-color:#faf8f4; }
+  .help-text { color:#6b7a72; }
+  .field-hint { font-size:.75rem; color:#8a9891; margin-top:.25rem; }
+  .toast { animation: slideIn .25s ease-out, fadeOut .4s ease-in 2.6s forwards; }
+  @keyframes slideIn { from { transform: translateY(-8px); opacity:0 } to { transform: translateY(0); opacity:1 } }
+  @keyframes fadeOut { to { opacity:0; transform: translateY(-8px); } }
+  .editing-row { background-color:#fdf6e3 !important; }
+</style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen p-4 md:p-8">
+<body class="text-slate-800 min-h-screen p-4 md:p-8">
+
+  <!-- Contenedor de notificaciones -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 items-end"></div>
 
   <div class="max-w-6xl mx-auto space-y-8">
 
-    <header class="flex flex-col md:flex-row md:items-center md:justify-between border-b pb-4 border-slate-200 gap-4">
-      <div>
-        <h1 class="text-3xl font-bold text-slate-900">Control de Descansos</h1>
-        <p class="text-slate-500 text-sm">Gestión de días acumulados, redimidos y pendientes</p>
+    <!-- ENCABEZADO -->
+    <header class="border-b pb-5 border-forest-200">
+      <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-bold text-forest-900">Control de Descansos</h1>
+          <p class="help-text text-sm mt-1 max-w-xl">
+            Aquí llevas el registro de cuántos días de descanso tiene cada empleado, cuáles ya se han tomado (redimido)
+            y cuántos le quedan disponibles (pendientes). Todo se guarda automáticamente en este navegador.
+          </p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+          <button onclick="exportarDatos()" title="Descarga un archivo con toda la información actual, por si necesitas guardarla o pasarla a otro equipo"
+            class="text-xs bg-forest-100 hover:bg-forest-200 text-forest-800 font-medium px-3 py-2 rounded-lg transition">
+            ⬇ Descargar respaldo
+          </button>
+          <label title="Sube un archivo de respaldo que hayas descargado antes para recuperar la información"
+            class="text-xs bg-forest-100 hover:bg-forest-200 text-forest-800 font-medium px-3 py-2 rounded-lg transition cursor-pointer text-center">
+            ⬆ Restaurar respaldo
+            <input type="file" accept=".json" onchange="importarDatos(event)" class="hidden">
+          </label>
+          <button onclick="limpiarTodo()" title="Elimina TODOS los empleados y registros de este navegador. No se puede deshacer."
+            class="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-medium px-3 py-2 rounded-lg transition">
+            🗑 Borrar todo
+          </button>
+        </div>
       </div>
-      <button onclick="limpiarTodo()" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium px-3 py-2 rounded-lg transition">
-        Borrar todos los datos
-      </button>
     </header>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- FORMULARIOS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h2 class="text-lg font-semibold text-slate-800 mb-4">1. Registrar Nuevo Empleado</h2>
+      <!-- Empleados -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-forest-100">
+        <h2 id="titulo-form-empleado" class="text-lg font-semibold text-forest-900 mb-1">1. Registrar Nuevo Empleado</h2>
+        <p class="help-text text-xs mb-4">
+          Ingresa cuántos días de descanso le corresponden a esta persona en total. Ese número es la base: a medida
+          que registres redenciones, se le irán descontando.
+        </p>
         <form id="form-empleado" class="space-y-4">
+          <input type="hidden" id="emp-id-editando" value="">
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
-            <input type="text" id="emp-nombre" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nombre completo</label>
+            <input type="text" id="emp-nombre" required placeholder="Ej: María Restrepo"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-forest-600 outline-none">
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Días Acumulados / Asignados</label>
-            <input type="number" id="emp-dias" min="1" step="0.5" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            <label class="block text-sm font-medium text-slate-700 mb-1">Días de descanso asignados</label>
+            <input type="number" id="emp-dias" min="0" step="0.5" required placeholder="Ej: 5"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-forest-600 outline-none">
+            <p class="field-hint">Total de días con los que arranca. Puedes editarlo después si cambia.</p>
           </div>
-          <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition">
-            Guardar Empleado
-          </button>
+          <div class="flex gap-2">
+            <button type="submit" id="btn-guardar-empleado"
+              class="flex-1 bg-forest-700 hover:bg-forest-800 text-white font-medium py-2 rounded-lg transition">
+              Guardar empleado
+            </button>
+            <button type="button" id="btn-cancelar-empleado" onclick="cancelarEdicionEmpleado()"
+              class="hidden px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm">
+              Cancelar
+            </button>
+          </div>
         </form>
       </div>
 
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h2 class="text-lg font-semibold text-slate-800 mb-4">2. Redimir Descanso</h2>
-        <form id="form-redencion" class="space-y-4">
+      <!-- Días adicionales -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-forest-100">
+        <h2 id="titulo-form-adicion" class="text-lg font-semibold text-forest-900 mb-1">2. Agregar Días Adicionales</h2>
+        <p class="help-text text-xs mb-4">
+          Úsalo cuando un empleado gana días extra (ej: bono, compensación, día que se le reconoce). El valor se
+          <strong>suma</strong> a su total de días asignados, por lo que sus días pendientes aumentan de inmediato.
+        </p>
+        <form id="form-adicion" class="space-y-4">
+          <input type="hidden" id="adi-id-editando" value="">
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">Empleado</label>
-            <select id="red-empleado" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+            <select id="adi-empleado" required
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-forest-600 outline-none">
               <option value="">Selecciona un empleado...</option>
             </select>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-              <input type="date" id="red-fecha" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+              <input type="date" id="adi-fecha" required
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-forest-600 outline-none">
             </div>
             <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">Días a Redimir</label>
-              <input type="number" id="red-dias" min="0.5" step="0.5" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+              <label class="block text-sm font-medium text-slate-700 mb-1">Días a sumar</label>
+              <input type="number" id="adi-dias" min="0.5" step="0.5" value="1" required
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-forest-600 outline-none">
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">Nota o Motivo</label>
-            <input type="text" id="red-nota" placeholder="Ej: Descanso compensatorio" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nota o motivo (opcional)</label>
+            <input type="text" id="adi-nota" placeholder="Ej: Día adicional por buen desempeño"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-forest-600 outline-none">
           </div>
-          <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition">
-            Registrar Redención
-          </button>
+          <div class="flex gap-2">
+            <button type="submit" id="btn-guardar-adicion"
+              class="flex-1 bg-forest-600 hover:bg-forest-700 text-white font-medium py-2 rounded-lg transition">
+              + Agregar días
+            </button>
+            <button type="button" id="btn-cancelar-adicion" onclick="cancelarEdicionAdicion()"
+              class="hidden px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Redenciones -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-forest-100">
+        <h2 id="titulo-form-redencion" class="text-lg font-semibold text-forest-900 mb-1">3. Redimir Descanso</h2>
+        <p class="help-text text-xs mb-4">
+          Registra aquí cuando un empleado efectivamente toma uno o varios días de descanso. Ese valor se resta
+          automáticamente de sus días pendientes.
+        </p>
+        <form id="form-redencion" class="space-y-4">
+          <input type="hidden" id="red-id-editando" value="">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Empleado</label>
+            <select id="red-empleado" required
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none">
+              <option value="">Selecciona un empleado...</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
+              <input type="date" id="red-fecha" required
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Días a redimir</label>
+              <input type="number" id="red-dias" min="0.5" step="0.5" required
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nota o motivo (opcional)</label>
+            <input type="text" id="red-nota" placeholder="Ej: Descanso compensatorio por turno del domingo"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none">
+          </div>
+          <div class="flex gap-2">
+            <button type="submit" id="btn-guardar-redencion"
+              class="flex-1 bg-gold-600 hover:bg-gold-500 text-white font-medium py-2 rounded-lg transition">
+              Registrar redención
+            </button>
+            <button type="button" id="btn-cancelar-redencion" onclick="cancelarEdicionRedencion()"
+              class="hidden px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-sm">
+              Cancelar
+            </button>
+          </div>
         </form>
       </div>
 
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <!-- RESUMEN -->
+    <div class="bg-white rounded-xl shadow-sm border border-forest-100 overflow-hidden">
       <div class="p-6 border-b border-slate-100">
-        <h2 class="text-xl font-bold text-slate-800">Resumen de Empleados</h2>
+        <h2 class="text-xl font-bold text-forest-900">Resumen de Empleados</h2>
+        <p class="help-text text-xs mt-1">
+          Pendientes = Días asignados − Días ya redimidos. El color indica si al empleado todavía le quedan días (verde) o ya los agotó (rojo).
+        </p>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
-            <tr class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+            <tr class="bg-forest-50 text-forest-800 text-sm border-b border-forest-100">
               <th class="p-4 font-semibold">Empleado</th>
-              <th class="p-4 font-semibold text-center">Días Acumulados</th>
-              <th class="p-4 font-semibold text-center">Días Redimidos</th>
-              <th class="p-4 font-semibold text-center">Días Pendientes</th>
+              <th class="p-4 font-semibold text-center">Asignados</th>
+              <th class="p-4 font-semibold text-center">Redimidos</th>
+              <th class="p-4 font-semibold text-center">Pendientes</th>
               <th class="p-4 font-semibold text-right">Acciones</th>
             </tr>
           </thead>
@@ -90,19 +217,24 @@
       </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <!-- HISTORIAL -->
+    <div class="bg-white rounded-xl shadow-sm border border-forest-100 overflow-hidden">
       <div class="p-6 border-b border-slate-100">
-        <h2 class="text-xl font-bold text-slate-800">Historial de Redenciones</h2>
+        <h2 class="text-xl font-bold text-forest-900">Historial de Redenciones</h2>
+        <p class="help-text text-xs mt-1">
+          Cada fila es un descanso ya tomado. "Editar" corrige la fecha, días o nota. "Anular" borra el registro
+          y le devuelve esos días al empleado como pendientes.
+        </p>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
-            <tr class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+            <tr class="bg-forest-50 text-forest-800 text-sm border-b border-forest-100">
               <th class="p-4 font-semibold">Fecha</th>
               <th class="p-4 font-semibold">Empleado</th>
-              <th class="p-4 font-semibold text-center">Días Redimidos</th>
+              <th class="p-4 font-semibold text-center">Días</th>
               <th class="p-4 font-semibold">Nota / Motivo</th>
-              <th class="p-4 font-semibold text-right">Acción</th>
+              <th class="p-4 font-semibold text-right">Acciones</th>
             </tr>
           </thead>
           <tbody id="tabla-redenciones" class="divide-y divide-slate-100 text-sm"></tbody>
@@ -110,154 +242,458 @@
       </div>
     </div>
 
+    <!-- HISTORIAL DE ADICIONES -->
+    <div class="bg-white rounded-xl shadow-sm border border-forest-100 overflow-hidden">
+      <div class="p-6 border-b border-slate-100">
+        <h2 class="text-xl font-bold text-forest-900">Historial de Días Adicionales</h2>
+        <p class="help-text text-xs mt-1">
+          Días extra que se le han sumado al total de cada empleado. "Quitar" resta esos días del total
+          (solo si no se han redimido ya).
+        </p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-forest-50 text-forest-800 text-sm border-b border-forest-100">
+              <th class="p-4 font-semibold">Fecha</th>
+              <th class="p-4 font-semibold">Empleado</th>
+              <th class="p-4 font-semibold text-center">Días sumados</th>
+              <th class="p-4 font-semibold">Nota / Motivo</th>
+              <th class="p-4 font-semibold text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-adiciones" class="divide-y divide-slate-100 text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
-  <script>
-    let empleados = JSON.parse(localStorage.getItem('empleados')) || [];
-    let redenciones = JSON.parse(localStorage.getItem('redenciones')) || [];
+<script>
+  // ===== Estado =====
+  let empleados = JSON.parse(localStorage.getItem('empleados')) || [];
+  let redenciones = JSON.parse(localStorage.getItem('redenciones')) || [];
+  let adiciones = JSON.parse(localStorage.getItem('adiciones')) || [];
 
-    const formEmpleado = document.getElementById('form-empleado');
-    const formRedencion = document.getElementById('form-redencion');
-    const selectEmpleado = document.getElementById('red-empleado');
-    const tablaEmpleados = document.getElementById('tabla-empleados');
-    const tablaRedenciones = document.getElementById('tabla-redenciones');
+  // ===== Elementos =====
+  const formEmpleado = document.getElementById('form-empleado');
+  const formRedencion = document.getElementById('form-redencion');
+  const formAdicion = document.getElementById('form-adicion');
+  const selectEmpleado = document.getElementById('red-empleado');
+  const selectEmpleadoAdicion = document.getElementById('adi-empleado');
+  const tablaEmpleados = document.getElementById('tabla-empleados');
+  const tablaRedenciones = document.getElementById('tabla-redenciones');
+  const tablaAdiciones = document.getElementById('tabla-adiciones');
 
-    document.getElementById('red-fecha').valueAsDate = new Date();
+  document.getElementById('red-fecha').valueAsDate = new Date();
+  document.getElementById('adi-fecha').valueAsDate = new Date();
 
-    function guardar() {
-      localStorage.setItem('empleados', JSON.stringify(empleados));
-      localStorage.setItem('redenciones', JSON.stringify(redenciones));
-      render();
+  // ===== Notificaciones (explican qué acción se acaba de hacer) =====
+  function notificar(mensaje, tipo = 'exito') {
+    const colores = {
+      exito: 'bg-forest-700',
+      info: 'bg-slate-700',
+      error: 'bg-red-600'
+    };
+    const toast = document.createElement('div');
+    toast.className = `toast ${colores[tipo]} text-white text-sm px-4 py-3 rounded-lg shadow-lg max-w-xs`;
+    toast.textContent = mensaje;
+    document.getElementById('toast-container').appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
+  function guardar() {
+    localStorage.setItem('empleados', JSON.stringify(empleados));
+    localStorage.setItem('redenciones', JSON.stringify(redenciones));
+    localStorage.setItem('adiciones', JSON.stringify(adiciones));
+    render();
+  }
+
+  function diasPendientes(empleadoId, excluirRedencionId = null) {
+    const emp = empleados.find(e => e.id === empleadoId);
+    if (!emp) return 0;
+    const redimidos = redenciones
+      .filter(r => r.empleadoId === empleadoId && r.id !== excluirRedencionId)
+      .reduce((sum, r) => sum + r.dias, 0);
+    return emp.diasAcumulados - redimidos;
+  }
+
+  // ===== Empleados: crear / editar =====
+  formEmpleado.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const idEditando = document.getElementById('emp-id-editando').value;
+    const nombre = document.getElementById('emp-nombre').value.trim();
+    const diasAcumulados = parseFloat(document.getElementById('emp-dias').value);
+
+    const duplicado = empleados.some(emp =>
+      emp.nombre.toLowerCase() === nombre.toLowerCase() && String(emp.id) !== idEditando
+    );
+    if (duplicado) {
+      notificar('Ya existe un empleado con ese nombre.', 'error');
+      return;
     }
 
-    formEmpleado.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const nombre = document.getElementById('emp-nombre').value.trim();
-      const diasAcumulados = parseFloat(document.getElementById('emp-dias').value);
-
-      if (empleados.some(e => e.nombre.toLowerCase() === nombre.toLowerCase())) {
-        alert('Ya existe un empleado con este nombre.');
+    if (idEditando) {
+      const emp = empleados.find(e => String(e.id) === idEditando);
+      const yaRedimidos = redenciones.filter(r => r.empleadoId === emp.id).reduce((s, r) => s + r.dias, 0);
+      if (diasAcumulados < yaRedimidos) {
+        notificar(`No puedes asignar ${diasAcumulados} días: ya se han redimido ${yaRedimidos}.`, 'error');
         return;
       }
-
+      emp.nombre = nombre;
+      emp.diasAcumulados = diasAcumulados;
+      notificar(`Datos de "${nombre}" actualizados.`);
+      cancelarEdicionEmpleado();
+    } else {
       empleados.push({ id: Date.now(), nombre, diasAcumulados });
+      notificar(`Empleado "${nombre}" registrado con ${diasAcumulados} días.`);
       formEmpleado.reset();
+    }
+    guardar();
+  });
+
+  function editarEmpleado(id) {
+    const emp = empleados.find(e => e.id === id);
+    if (!emp) return;
+    document.getElementById('emp-id-editando').value = emp.id;
+    document.getElementById('emp-nombre').value = emp.nombre;
+    document.getElementById('emp-dias').value = emp.diasAcumulados;
+    document.getElementById('titulo-form-empleado').textContent = `Editando a "${emp.nombre}"`;
+    document.getElementById('btn-guardar-empleado').textContent = 'Guardar cambios';
+    document.getElementById('btn-cancelar-empleado').classList.remove('hidden');
+    document.getElementById('form-empleado').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    render();
+  }
+
+  function cancelarEdicionEmpleado() {
+    document.getElementById('emp-id-editando').value = '';
+    document.getElementById('titulo-form-empleado').textContent = '1. Registrar Nuevo Empleado';
+    document.getElementById('btn-guardar-empleado').textContent = 'Guardar empleado';
+    document.getElementById('btn-cancelar-empleado').classList.add('hidden');
+    formEmpleado.reset();
+    render();
+  }
+
+  function eliminarEmpleado(id) {
+    const emp = empleados.find(e => e.id === id);
+    if (confirm(`¿Eliminar a "${emp.nombre}" y todo su historial de redenciones? Esta acción no se puede deshacer.`)) {
+      empleados = empleados.filter(e => e.id !== id);
+      redenciones = redenciones.filter(r => r.empleadoId !== id);
+      notificar(`Empleado "${emp.nombre}" eliminado.`, 'info');
       guardar();
-    });
+    }
+  }
 
-    formRedencion.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const empleadoId = parseInt(selectEmpleado.value);
-      const fecha = document.getElementById('red-fecha').value;
-      const dias = parseFloat(document.getElementById('red-dias').value);
-      const nota = document.getElementById('red-nota').value.trim();
+  // ===== Días adicionales: crear / editar =====
+  formAdicion.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const idEditando = document.getElementById('adi-id-editando').value;
+    const empleadoId = parseInt(selectEmpleadoAdicion.value);
+    const fecha = document.getElementById('adi-fecha').value;
+    const dias = parseFloat(document.getElementById('adi-dias').value);
+    const nota = document.getElementById('adi-nota').value.trim();
 
-      const emp = empleados.find(e => e.id === empleadoId);
-      if (!emp) return;
+    const emp = empleados.find(e => e.id === empleadoId);
+    if (!emp) return;
 
-      const diasRedimidosTotales = redenciones
-        .filter(r => r.empleadoId === empleadoId)
-        .reduce((sum, r) => sum + r.dias, 0);
-
-      const diasPendientes = emp.diasAcumulados - diasRedimidosTotales;
-
-      if (dias > diasPendientes) {
-        alert(`No puedes redimir ${dias} días. El empleado solo tiene ${diasPendientes} días pendientes.`);
+    if (idEditando) {
+      const adi = adiciones.find(a => a.id === parseInt(idEditando));
+      const diferencia = dias - adi.dias; // cuánto cambia el total
+      const nuevoTotal = emp.diasAcumulados + diferencia;
+      const redimidos = redenciones.filter(r => r.empleadoId === emp.id).reduce((s, r) => s + r.dias, 0);
+      if (nuevoTotal < redimidos) {
+        notificar(`No puedes bajar a ${dias} días adicionales: dejaría el total por debajo de lo ya redimido.`, 'error');
         return;
       }
+      emp.diasAcumulados = nuevoTotal;
+      adi.empleadoId = empleadoId;
+      adi.fecha = fecha;
+      adi.dias = dias;
+      adi.nota = nota;
+      notificar('Días adicionales actualizados.');
+      cancelarEdicionAdicion();
+    } else {
+      emp.diasAcumulados += dias;
+      adiciones.push({ id: Date.now(), empleadoId, fecha, dias, nota });
+      notificar(`Se sumaron ${dias} día(s) adicionales a ${emp.nombre}. Nuevo total: ${emp.diasAcumulados}.`);
+      document.getElementById('adi-dias').value = 1;
+      document.getElementById('adi-nota').value = '';
+    }
+    guardar();
+  });
 
+  function editarAdicion(id) {
+    const adi = adiciones.find(a => a.id === id);
+    if (!adi) return;
+    document.getElementById('adi-id-editando').value = adi.id;
+    selectEmpleadoAdicion.value = adi.empleadoId;
+    document.getElementById('adi-fecha').value = adi.fecha;
+    document.getElementById('adi-dias').value = adi.dias;
+    document.getElementById('adi-nota').value = adi.nota || '';
+    document.getElementById('titulo-form-adicion').textContent = 'Editando días adicionales';
+    document.getElementById('btn-guardar-adicion').textContent = 'Guardar cambios';
+    document.getElementById('btn-cancelar-adicion').classList.remove('hidden');
+    document.getElementById('form-adicion').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    render();
+  }
+
+  function cancelarEdicionAdicion() {
+    document.getElementById('adi-id-editando').value = '';
+    document.getElementById('titulo-form-adicion').textContent = '2. Agregar Días Adicionales';
+    document.getElementById('btn-guardar-adicion').textContent = '+ Agregar días';
+    document.getElementById('btn-cancelar-adicion').classList.add('hidden');
+    formAdicion.reset();
+    document.getElementById('adi-dias').value = 1;
+    document.getElementById('adi-fecha').valueAsDate = new Date();
+    render();
+  }
+
+  function eliminarAdicion(id) {
+    const adi = adiciones.find(a => a.id === id);
+    const emp = empleados.find(e => e.id === adi.empleadoId);
+    if (emp) {
+      const nuevoTotal = emp.diasAcumulados - adi.dias;
+      const redimidos = redenciones.filter(r => r.empleadoId === emp.id).reduce((s, r) => s + r.dias, 0);
+      if (nuevoTotal < redimidos) {
+        notificar(`No se puede quitar: esos ${adi.dias} día(s) ya fueron redimidos por ${emp.nombre}.`, 'error');
+        return;
+      }
+    }
+    if (confirm(`¿Quitar estos ${adi.dias} día(s) adicionales? Se restarán del total del empleado.`)) {
+      if (emp) emp.diasAcumulados -= adi.dias;
+      adiciones = adiciones.filter(a => a.id !== id);
+      notificar('Días adicionales retirados del total.', 'info');
+      guardar();
+    }
+  }
+
+  // ===== Redenciones: crear / editar =====
+  formRedencion.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const idEditando = document.getElementById('red-id-editando').value;
+    const empleadoId = parseInt(selectEmpleado.value);
+    const fecha = document.getElementById('red-fecha').value;
+    const dias = parseFloat(document.getElementById('red-dias').value);
+    const nota = document.getElementById('red-nota').value.trim();
+
+    const emp = empleados.find(e => e.id === empleadoId);
+    if (!emp) return;
+
+    const excluir = idEditando ? parseInt(idEditando) : null;
+    const pendientes = diasPendientes(empleadoId, excluir);
+
+    if (dias > pendientes) {
+      notificar(`No puedes redimir ${dias} días: "${emp.nombre}" solo tiene ${pendientes} pendientes.`, 'error');
+      return;
+    }
+
+    if (idEditando) {
+      const red = redenciones.find(r => r.id === excluir);
+      red.empleadoId = empleadoId;
+      red.fecha = fecha;
+      red.dias = dias;
+      red.nota = nota;
+      notificar('Redención actualizada.');
+      cancelarEdicionRedencion();
+    } else {
       redenciones.push({ id: Date.now(), empleadoId, fecha, dias, nota });
+      notificar(`Se registraron ${dias} día(s) de descanso para ${emp.nombre}.`);
       document.getElementById('red-dias').value = '';
       document.getElementById('red-nota').value = '';
-      guardar();
-    });
-
-    function eliminarRedencion(id) {
-      if (confirm('¿Deseas cancelar esta redención? Los días se devolverán al saldo pendiente.')) {
-        redenciones = redenciones.filter(r => r.id !== id);
-        guardar();
-      }
     }
+    guardar();
+  });
 
-    function eliminarEmpleado(id) {
-      if (confirm('¿Eliminar empleado y todo su historial de redenciones?')) {
-        empleados = empleados.filter(e => e.id !== id);
-        redenciones = redenciones.filter(r => r.empleadoId !== id);
-        guardar();
-      }
-    }
-
-    function limpiarTodo() {
-      if (confirm('¿Estás seguro de borrar todos los empleados y registros?')) {
-        localStorage.clear();
-        empleados = [];
-        redenciones = [];
-        render();
-      }
-    }
-
-    function render() {
-      selectEmpleado.innerHTML = '<option value="">Selecciona un empleado...</option>';
-      empleados.forEach(e => {
-        selectEmpleado.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
-      });
-
-      tablaEmpleados.innerHTML = '';
-      if (empleados.length === 0) {
-        tablaEmpleados.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay empleados registrados.</td></tr>`;
-      } else {
-        empleados.forEach(emp => {
-          const redimidos = redenciones
-            .filter(r => r.empleadoId === emp.id)
-            .reduce((sum, r) => sum + r.dias, 0);
-          const pendientes = emp.diasAcumulados - redimidos;
-
-          tablaEmpleados.innerHTML += `
-            <tr class="hover:bg-slate-50">
-              <td class="p-4 font-medium text-slate-900">${emp.nombre}</td>
-              <td class="p-4 text-center">${emp.diasAcumulados}</td>
-              <td class="p-4 text-center text-amber-600 font-semibold">${redimidos}</td>
-              <td class="p-4 text-center">
-                <span class="px-2.5 py-1 rounded-full text-xs font-bold ${pendientes > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}">
-                  ${pendientes} días
-                </span>
-              </td>
-              <td class="p-4 text-right">
-                <button onclick="eliminarEmpleado(${emp.id})" class="text-red-500 hover:text-red-700 text-xs font-medium">
-                  Eliminar
-                </button>
-              </td>
-            </tr>
-          `;
-        });
-      }
-
-      tablaRedenciones.innerHTML = '';
-      if (redenciones.length === 0) {
-        tablaRedenciones.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">No hay redenciones registradas.</td></tr>`;
-      } else {
-        [...redenciones].reverse().forEach(red => {
-          const emp = empleados.find(e => e.id === red.empleadoId);
-          const nombreEmp = emp ? emp.nombre : 'Empleado eliminado';
-
-          tablaRedenciones.innerHTML += `
-            <tr class="hover:bg-slate-50">
-              <td class="p-4 text-slate-600">${red.fecha}</td>
-              <td class="p-4 font-medium text-slate-900">${nombreEmp}</td>
-              <td class="p-4 text-center font-bold text-amber-600">${red.dias}</td>
-              <td class="p-4 text-slate-500">${red.nota || '-'}</td>
-              <td class="p-4 text-right">
-                <button onclick="eliminarRedencion(${red.id})" class="text-xs text-red-500 hover:text-red-700 font-medium">
-                  Anular
-                </button>
-              </td>
-            </tr>
-          `;
-        });
-      }
-    }
-
+  function editarRedencion(id) {
+    const red = redenciones.find(r => r.id === id);
+    if (!red) return;
+    document.getElementById('red-id-editando').value = red.id;
+    selectEmpleado.value = red.empleadoId;
+    document.getElementById('red-fecha').value = red.fecha;
+    document.getElementById('red-dias').value = red.dias;
+    document.getElementById('red-nota').value = red.nota || '';
+    document.getElementById('titulo-form-redencion').textContent = 'Editando redención';
+    document.getElementById('btn-guardar-redencion').textContent = 'Guardar cambios';
+    document.getElementById('btn-cancelar-redencion').classList.remove('hidden');
+    document.getElementById('form-redencion').scrollIntoView({ behavior: 'smooth', block: 'center' });
     render();
-  </script>
+  }
+
+  function cancelarEdicionRedencion() {
+    document.getElementById('red-id-editando').value = '';
+    document.getElementById('titulo-form-redencion').textContent = '2. Redimir Descanso';
+    document.getElementById('btn-guardar-redencion').textContent = 'Registrar redención';
+    document.getElementById('btn-cancelar-redencion').classList.add('hidden');
+    formRedencion.reset();
+    document.getElementById('red-fecha').valueAsDate = new Date();
+    render();
+  }
+
+  function eliminarRedencion(id) {
+    if (confirm('¿Anular esta redención? Los días se devolverán al saldo pendiente del empleado.')) {
+      redenciones = redenciones.filter(r => r.id !== id);
+      notificar('Redención anulada. Los días vuelven a estar disponibles.', 'info');
+      guardar();
+    }
+  }
+
+  // ===== Respaldo: exportar / importar =====
+  function exportarDatos() {
+    const datos = { empleados, redenciones, adiciones, exportadoEl: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `respaldo-descansos-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notificar('Respaldo descargado.');
+  }
+
+  function importarDatos(event) {
+    const archivo = event.target.files[0];
+    if (!archivo) return;
+    const lector = new FileReader();
+    lector.onload = (e) => {
+      try {
+        const datos = JSON.parse(e.target.result);
+        if (!Array.isArray(datos.empleados) || !Array.isArray(datos.redenciones)) {
+          throw new Error('Formato inválido');
+        }
+        if (confirm('Esto reemplazará todos los datos actuales por los del archivo. ¿Continuar?')) {
+          empleados = datos.empleados;
+          redenciones = datos.redenciones;
+          adiciones = Array.isArray(datos.adiciones) ? datos.adiciones : [];
+          guardar();
+          notificar('Respaldo restaurado correctamente.');
+        }
+      } catch (err) {
+        notificar('El archivo no es un respaldo válido.', 'error');
+      }
+      event.target.value = '';
+    };
+    lector.readAsText(archivo);
+  }
+
+  function limpiarTodo() {
+    if (confirm('¿Borrar TODOS los empleados y registros de este navegador? No se puede deshacer. Considera descargar un respaldo antes.')) {
+      localStorage.clear();
+      empleados = [];
+      redenciones = [];
+      adiciones = [];
+      notificar('Todos los datos fueron eliminados.', 'info');
+      render();
+    }
+  }
+
+  // ===== Render =====
+  function render() {
+    const idEmpEditando = document.getElementById('emp-id-editando').value;
+    const idRedEditando = document.getElementById('red-id-editando').value;
+
+    // Selector de empleados
+    const seleccionActual = selectEmpleado.value;
+    selectEmpleado.innerHTML = '<option value="">Selecciona un empleado...</option>';
+    empleados.forEach(e => {
+      selectEmpleado.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
+    });
+    if (seleccionActual) selectEmpleado.value = seleccionActual;
+
+    const seleccionActualAdi = selectEmpleadoAdicion.value;
+    selectEmpleadoAdicion.innerHTML = '<option value="">Selecciona un empleado...</option>';
+    empleados.forEach(e => {
+      selectEmpleadoAdicion.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
+    });
+    if (seleccionActualAdi) selectEmpleadoAdicion.value = seleccionActualAdi;
+
+    // Tabla resumen
+    tablaEmpleados.innerHTML = '';
+    if (empleados.length === 0) {
+      tablaEmpleados.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">
+        Todavía no hay empleados registrados. Usa el formulario de arriba para agregar el primero.
+      </td></tr>`;
+    } else {
+      empleados.forEach(emp => {
+        const redimidos = redenciones.filter(r => r.empleadoId === emp.id).reduce((s, r) => s + r.dias, 0);
+        const pendientes = emp.diasAcumulados - redimidos;
+        const filaActiva = String(emp.id) === idEmpEditando ? 'editing-row' : '';
+
+        tablaEmpleados.innerHTML += `
+          <tr class="hover:bg-slate-50 ${filaActiva}">
+            <td class="p-4 font-medium text-slate-900">${emp.nombre}</td>
+            <td class="p-4 text-center">${emp.diasAcumulados}</td>
+            <td class="p-4 text-center text-gold-600 font-semibold">${redimidos}</td>
+            <td class="p-4 text-center">
+              <span class="px-2.5 py-1 rounded-full text-xs font-bold ${pendientes > 0 ? 'bg-forest-100 text-forest-800' : 'bg-red-100 text-red-800'}">
+                ${pendientes} días
+              </span>
+            </td>
+            <td class="p-4 text-right space-x-3">
+              <button onclick="editarEmpleado(${emp.id})" class="text-forest-700 hover:text-forest-900 text-xs font-medium">Editar</button>
+              <button onclick="eliminarEmpleado(${emp.id})" class="text-red-500 hover:text-red-700 text-xs font-medium">Eliminar</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    // Tabla historial
+    tablaRedenciones.innerHTML = '';
+    if (redenciones.length === 0) {
+      tablaRedenciones.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">
+        Aún no se ha registrado ninguna redención de descanso.
+      </td></tr>`;
+    } else {
+      [...redenciones].reverse().forEach(red => {
+        const emp = empleados.find(e => e.id === red.empleadoId);
+        const nombreEmp = emp ? emp.nombre : 'Empleado eliminado';
+        const filaActiva = String(red.id) === idRedEditando ? 'editing-row' : '';
+
+        tablaRedenciones.innerHTML += `
+          <tr class="hover:bg-slate-50 ${filaActiva}">
+            <td class="p-4 text-slate-600">${red.fecha}</td>
+            <td class="p-4 font-medium text-slate-900">${nombreEmp}</td>
+            <td class="p-4 text-center font-bold text-gold-600">${red.dias}</td>
+            <td class="p-4 text-slate-500">${red.nota || '-'}</td>
+            <td class="p-4 text-right space-x-3">
+              <button onclick="editarRedencion(${red.id})" class="text-forest-700 hover:text-forest-900 text-xs font-medium" ${!emp ? 'disabled' : ''}>Editar</button>
+              <button onclick="eliminarRedencion(${red.id})" class="text-xs text-red-500 hover:text-red-700 font-medium">Anular</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    // Tabla de adiciones
+    const idAdiEditando = document.getElementById('adi-id-editando').value;
+    tablaAdiciones.innerHTML = '';
+    if (adiciones.length === 0) {
+      tablaAdiciones.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">
+        Aún no se ha sumado ningún día adicional.
+      </td></tr>`;
+    } else {
+      [...adiciones].reverse().forEach(adi => {
+        const emp = empleados.find(e => e.id === adi.empleadoId);
+        const nombreEmp = emp ? emp.nombre : 'Empleado eliminado';
+        const filaActiva = String(adi.id) === idAdiEditando ? 'editing-row' : '';
+
+        tablaAdiciones.innerHTML += `
+          <tr class="hover:bg-slate-50 ${filaActiva}">
+            <td class="p-4 text-slate-600">${adi.fecha}</td>
+            <td class="p-4 font-medium text-slate-900">${nombreEmp}</td>
+            <td class="p-4 text-center font-bold text-forest-700">+${adi.dias}</td>
+            <td class="p-4 text-slate-500">${adi.nota || '-'}</td>
+            <td class="p-4 text-right space-x-3">
+              <button onclick="editarAdicion(${adi.id})" class="text-forest-700 hover:text-forest-900 text-xs font-medium" ${!emp ? 'disabled' : ''}>Editar</button>
+              <button onclick="eliminarAdicion(${adi.id})" class="text-xs text-red-500 hover:text-red-700 font-medium">Quitar</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+  }
+
+  render();
+</script>
 </body>
 </html>
