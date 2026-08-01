@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Control de Descansos de Empleados</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  // ============================================================
+  // PEGA AQUÍ TUS DATOS DE SUPABASE (ver README para dónde encontrarlos)
+  // ============================================================
+  const SUPABASE_URL = 'https://lfutnjninkjicmgqatvq.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_mPEL_ymcY5CrxXvY8fQLEw_vcrmpLHo';
+  // ============================================================
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+</script>
 <script>
   tailwind.config = {
     theme: {
@@ -30,6 +41,11 @@
 </head>
 <body class="text-slate-800 min-h-screen p-4 md:p-8">
 
+  <!-- Aviso de estado de conexión -->
+  <div id="estado-conexion" class="fixed bottom-4 right-4 z-50 text-xs px-3 py-2 rounded-lg shadow bg-slate-800 text-white">
+    Conectando con la base de datos...
+  </div>
+
   <!-- Contenedor de notificaciones -->
   <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 items-end"></div>
 
@@ -42,10 +58,15 @@
           <h1 class="text-3xl font-bold text-forest-900">Control de Descansos</h1>
           <p class="help-text text-sm mt-1 max-w-xl">
             Aquí llevas el registro de cuántos días de descanso tiene cada empleado, cuáles ya se han tomado (redimido)
-            y cuántos le quedan disponibles (pendientes). Todo se guarda automáticamente en este navegador.
+            y cuántos le quedan disponibles (pendientes). Los datos se guardan en la base de datos en línea:
+            cualquiera que entre a esta página ve la misma información, actualizada.
           </p>
         </div>
         <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+          <button onclick="cargarDatos()" title="Trae la información más reciente, por si alguien más la actualizó desde otro equipo"
+            class="text-xs bg-forest-100 hover:bg-forest-200 text-forest-800 font-medium px-3 py-2 rounded-lg transition">
+            🔄 Actualizar
+          </button>
           <button onclick="exportarDatos()" title="Descarga un archivo con toda la información actual, por si necesitas guardarla o pasarla a otro equipo"
             class="text-xs bg-forest-100 hover:bg-forest-200 text-forest-800 font-medium px-3 py-2 rounded-lg transition">
             ⬇ Descargar respaldo
@@ -270,10 +291,10 @@
   </div>
 
 <script>
-  // ===== Estado =====
-  let empleados = JSON.parse(localStorage.getItem('empleados')) || [];
-  let redenciones = JSON.parse(localStorage.getItem('redenciones')) || [];
-  let adiciones = JSON.parse(localStorage.getItem('adiciones')) || [];
+  // ===== Estado (se carga desde la base de datos, no desde este navegador) =====
+  let empleados = [];
+  let redenciones = [];
+  let adiciones = [];
 
   // ===== Elementos =====
   const formEmpleado = document.getElementById('form-empleado');
@@ -302,11 +323,58 @@
     setTimeout(() => toast.remove(), 3000);
   }
 
-  function guardar() {
-    localStorage.setItem('empleados', JSON.stringify(empleados));
-    localStorage.setItem('redenciones', JSON.stringify(redenciones));
-    localStorage.setItem('adiciones', JSON.stringify(adiciones));
-    render();
+  function actualizarEstadoConexion(mensaje, tipo) {
+    const el = document.getElementById('estado-conexion');
+    const colores = { ok: 'bg-forest-700', error: 'bg-red-600', cargando: 'bg-slate-800' };
+    el.className = `fixed bottom-4 right-4 z-50 text-xs px-3 py-2 rounded-lg shadow ${colores[tipo]} text-white`;
+    el.textContent = mensaje;
+    if (tipo === 'ok') setTimeout(() => { el.style.display = 'none'; }, 1500);
+    else el.style.display = 'block';
+  }
+
+  // Trae los datos actuales desde Supabase
+  async function cargarDatos() {
+    actualizarEstadoConexion('Conectando con la base de datos...', 'cargando');
+    try {
+      const { data, error } = await supabaseClient
+        .from('estado')
+        .select('empleados, redenciones, adiciones')
+        .eq('id', 1)
+        .single();
+
+      if (error) throw error;
+
+      empleados = data.empleados || [];
+      redenciones = data.redenciones || [];
+      adiciones = data.adiciones || [];
+      actualizarEstadoConexion('Conectado', 'ok');
+      render();
+    } catch (err) {
+      console.error(err);
+      actualizarEstadoConexion('No se pudo conectar con la base de datos', 'error');
+      notificar('No se pudo conectar con la base de datos. Revisa que pegaste bien la URL y la llave en el código.', 'error');
+    }
+  }
+
+  // Envía los datos actuales a Supabase
+  async function guardar() {
+    render(); // se actualiza la pantalla de inmediato, sin esperar a la base de datos
+    try {
+      const { error } = await supabaseClient
+        .from('estado')
+        .update({
+          empleados,
+          redenciones,
+          adiciones,
+          actualizado_en: new Date().toISOString()
+        })
+        .eq('id', 1);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error(err);
+      notificar('No se pudo guardar en la base de datos. Verifica tu conexión.', 'error');
+    }
   }
 
   function diasPendientes(empleadoId, excluirRedencionId = null) {
@@ -576,13 +644,12 @@
   }
 
   function limpiarTodo() {
-    if (confirm('¿Borrar TODOS los empleados y registros de este navegador? No se puede deshacer. Considera descargar un respaldo antes.')) {
-      localStorage.clear();
+    if (confirm('¿Borrar TODOS los empleados y registros de la base de datos? No se puede deshacer. Considera descargar un respaldo antes.')) {
       empleados = [];
       redenciones = [];
       adiciones = [];
       notificar('Todos los datos fueron eliminados.', 'info');
-      render();
+      guardar();
     }
   }
 
@@ -693,7 +760,7 @@
     }
   }
 
-  render();
+  cargarDatos();
 </script>
 </body>
 </html>
